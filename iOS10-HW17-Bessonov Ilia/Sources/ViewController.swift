@@ -11,7 +11,7 @@ class ViewController: UIViewController {
 
     // MARK: - Prorerties
 
-    var isBlack: Bool = false {
+    private var isBlack: Bool = false {
         didSet {
             if isBlack {
                 self.view.backgroundColor = .black
@@ -20,6 +20,8 @@ class ViewController: UIViewController {
             }
         }
     }
+
+    private var isStarting = false
 
     // MARK: - Outlets
 
@@ -67,6 +69,25 @@ class ViewController: UIViewController {
         return button
     }()
 
+    private lazy var stopButton: UIButton = {
+        let button = UIButton(type: .system)
+        button.setTitle("Stop", for: .normal)
+        button.translatesAutoresizingMaskIntoConstraints = false
+        button.addTarget(self, action: #selector(stopButtonTapped), for: .touchUpInside)
+        return button
+    }()
+
+    private lazy var generatePasswordLabel: UILabel = {
+        let label = UILabel()
+        label.textAlignment = .center
+        label.numberOfLines = 0
+        label.textColor = .black
+        label.backgroundColor = .systemGray6
+        label.font = UIFont.preferredFont(forTextStyle: .largeTitle)
+        label.translatesAutoresizingMaskIntoConstraints = false
+        return label
+    }()
+
     // MARK: - Lifecycle
 
     override func viewDidLoad() {
@@ -83,20 +104,28 @@ class ViewController: UIViewController {
         var password: String = ""
         let queue = OperationQueue()
         queue.maxConcurrentOperationCount = 1
+        isStarting = true
 
         queue.addOperation {
             // Will strangely ends at 0000 instead of ~~~
-            while password != passwordToUnlock { // Increase MAXIMUM_PASSWORD_SIZE value for more
+            while password != passwordToUnlock && self.isStarting { // Increase MAXIMUM_PASSWORD_SIZE value for more
                 password = self.generateBruteForce(password, fromArray: ALLOWED_CHARACTERS)
                 //             Your stuff here
-                print(password)
+                DispatchQueue.main.async {
+                    self.generatePasswordLabel.text = "\(password)"
+                }
                 // Your stuff here
             }
 
             DispatchQueue.main.async {
                 self.activityIndicator.stopAnimating()
-                self.label.text = "Password found: \(password)"
-                self.textField.isSecureTextEntry = false
+
+                if password == passwordToUnlock {
+                    self.label.text = "Password found: \(password)"
+                    self.textField.isSecureTextEntry = false
+                } else {
+                    self.label.text = "password isn't unlock"
+                }
             }
         }
     }
@@ -143,7 +172,7 @@ class ViewController: UIViewController {
     }
 
     private func setupHierarchy() {
-        view.addSubviews([label, textField, activityIndicator, anotherButton, button])
+        view.addSubviews([label, textField, activityIndicator, anotherButton, button, stopButton, generatePasswordLabel])
     }
 
     private func setupLayout() {
@@ -167,17 +196,32 @@ class ViewController: UIViewController {
             button.topAnchor.constraint(equalTo: anotherButton.bottomAnchor, constant: 15),
             button.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 15),
             button.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -15),
+
+            stopButton.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            stopButton.centerYAnchor.constraint(equalTo: view.centerYAnchor),
+
+            generatePasswordLabel.topAnchor.constraint(equalTo: stopButton.bottomAnchor, constant: 20),
+            generatePasswordLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 25),
+            generatePasswordLabel.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -25)
         ])
     }
 
     // MARK: - Actions
 
     @objc func anotherButtonTapped() {
-        generateRandomPassword()
+//        generateRandomPassword()
+        bruteForce(passwordToUnlock: textField.text ?? "")
         activityIndicator.startAnimating()
     }
 
     @objc func buttonTapped() {
         isBlack.toggle()
+    }
+
+    @objc func stopButtonTapped() {
+        isStarting = false
+        DispatchQueue.main.async {
+            self.activityIndicator.stopAnimating()
+        }
     }
 }
