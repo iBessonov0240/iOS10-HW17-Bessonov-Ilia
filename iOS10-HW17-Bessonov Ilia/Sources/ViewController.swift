@@ -22,6 +22,9 @@ class ViewController: UIViewController {
     }
 
     private var isStarting = false
+    private let queue = DispatchQueue.global(qos: .utility)
+    private var workItem: DispatchWorkItem?
+    private let group = DispatchGroup()
 
     // MARK: - Outlets
 
@@ -102,22 +105,24 @@ class ViewController: UIViewController {
         let ALLOWED_CHARACTERS:   [String] = String().printable.map { String($0) }
 
         var password: String = ""
-        let queue = OperationQueue()
-        queue.maxConcurrentOperationCount = 1
         isStarting = true
+        workItem?.cancel()
 
-        queue.addOperation {
+        let newWorkItem = DispatchWorkItem {
             // Will strangely ends at 0000 instead of ~~~
-            while password != passwordToUnlock && self.isStarting { // Increase MAXIMUM_PASSWORD_SIZE value for more
+            while password != passwordToUnlock && self.isStarting {  // Increase MAXIMUM_PASSWORD_SIZE value for more
+                self.group.enter()
                 password = self.generateBruteForce(password, fromArray: ALLOWED_CHARACTERS)
                 //             Your stuff here
-                DispatchQueue.main.async {
+                self.group.notify(queue: .main) {
                     self.generatePasswordLabel.text = "\(password)"
+                    print("\(password)")
                 }
+                self.group.leave()
                 // Your stuff here
             }
 
-            DispatchQueue.main.async {
+            self.group.notify(queue: .main) {
                 self.activityIndicator.stopAnimating()
 
                 if password == passwordToUnlock {
@@ -128,6 +133,8 @@ class ViewController: UIViewController {
                 }
             }
         }
+        workItem = newWorkItem
+        queue.async(execute: newWorkItem)
     }
 
     private func indexOf(character: Character, _ array: [String]) -> Int {
@@ -210,17 +217,21 @@ class ViewController: UIViewController {
 
     @objc func anotherButtonTapped() {
 //        generateRandomPassword()
-        bruteForce(passwordToUnlock: textField.text ?? "")
-        activityIndicator.startAnimating()
+        group.notify(queue: .main) {
+            self.bruteForce(passwordToUnlock: self.textField.text ?? "")
+            self.activityIndicator.startAnimating()
+        }
     }
 
     @objc func buttonTapped() {
-        isBlack.toggle()
+        group.notify(queue: .main) {
+            self.isBlack.toggle()
+        }
     }
 
     @objc func stopButtonTapped() {
         isStarting = false
-        DispatchQueue.main.async {
+        group.notify(queue: .main) {
             self.activityIndicator.stopAnimating()
         }
     }
